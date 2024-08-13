@@ -40,7 +40,7 @@ It has a few dependencies: [raylib], [raygui] and [IXWebSocket][ixwebsocket].
     cmake build .. -DUSE_ZLIB=OFF
 ```
 - CMake should create either a Makefile or a Visual Studio solution (or anything else if you precised it). Use your favorite IDE to use those to compile.
-- If everything is alright, you should get a `squint` (or `squint.exe`) in the build folder.
+- If everything is alright, you should get a `micro-squint` (or `micro-squint.exe`) in the build folder.
 
 
 [squint]: https://eiyeron.itch.io/squint
