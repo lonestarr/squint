@@ -51,21 +51,58 @@ local function setup_image_buffer()
     if current_sprite == nil then
         return
     end
-
+    
+    local width = current_sprite.width*current_sprite.pixelRatio.width
+    local height = current_sprite.height*current_sprite.pixelRatio.height
+    
     if image_buffer == nil then
-        image_buffer = Image(current_sprite.width, current_sprite.height, ColorMode.RGB)
-    elseif image_buffer.width ~= current_sprite.width or image_buffer.height ~= current_sprite.height then
-        image_buffer:resize(current_sprite.width, current_sprite.height)
+        image_buffer = Image(width, height, ColorMode.RGB)
+    elseif image_buffer.width ~= width or image_buffer.height ~= height then
+        image_buffer:resize(width, height)
     end
 end
 
 send_image_to_squint = function()
     setup_image_buffer()
 
-    if image_buffer ~= nil then
+    if image_buffer ~= nil and app.activeFrame ~= nil then
         image_buffer:clear()
-        image_buffer:drawSprite(current_sprite, app.activeFrame.frameNumber)
+        
+        if current_sprite.pixelRatio.width == 1 and current_sprite.pixelRatio.height == 1 then
+            -- unfortunately the following does not take the sprite pixelRatio into account:
+            image_buffer:drawSprite(current_sprite, app.activeFrame.frameNumber)
+        else
+            -- (warning: slow code below)
 
+            -- so we first flatten the sprite:
+            local flatten_image = Image(current_sprite.width, current_sprite.height, current_sprite.colorMode)
+            local flatten_frame = current_sprite.frames[app.activeFrame.frameNumber]
+            
+            for _, layer in ipairs(current_sprite.layers) do
+              if layer.isVisible then
+                local cel = layer:cel(flatten_frame)
+                if cel then
+                    local image = cel.image
+                    flatten_image:drawImage(image, cel.position)
+                end
+              end
+            end
+                
+            -- and then we put each pixel one by one:       
+            for it in image_buffer:pixels() do
+                local x = it.x/current_sprite.pixelRatio.width
+                local y = it.y/current_sprite.pixelRatio.height
+                local c = flatten_image:getPixel(x, y)
+                if flatten_image.colorMode == ColorMode.INDEXED then
+                    local color = current_sprite.palettes[1]:getColor(c)
+                    c = app.pixelColor.rgba(color.red, color.green, color.blue, 255)
+                elseif flatten_image.colorMode == ColorMode.GRAY then
+                    c = app.pixelColor.rgba(c, c, c, 255)
+                end
+                it(c)
+            end
+        end
+        
         web_socket:sendBinary(string.pack("<LLL", IMAGE_ID, image_buffer.width, image_buffer.height), image_buffer.bytes)
     end
 end
