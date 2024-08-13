@@ -79,11 +79,14 @@ int start()
     serv.listenAndStart();
 
     // Prepare Raylib, the window, the graphics settings...
-    InitWindow(160, 120, "Squint micro viewer");
+    const Vector2 defaultWindowSize = Vector2{ 320, 200 };
+    InitWindow(defaultWindowSize.x, defaultWindowSize.y, "Squint micro viewer");
     SetExitKey(KEY_NULL);
     SetWindowState(FLAG_VSYNC_HINT);
 
-    SetWindowMinSize(160, 120);
+    Vector2 fullscreenWindowSize;
+    Vector2 lastImageSize{ 0, 0 };
+    bool imageSizeUpdated = false;
 
     SetTargetFPS(60);
 
@@ -92,8 +95,6 @@ int start()
     //--------------------------------------------------------------------------------------
 
     int renderScale = 1;
-
-    Vector2 windowSize = Vector2{160.f, 120.f};
 
     bool previouslyConnected = false;
 
@@ -110,14 +111,14 @@ int start()
             if (useFullScreen)
             {
 
-                windowSize = currentMonitorSize;
+                fullscreenWindowSize = currentMonitorSize;
                 SetWindowSize(currentMonitorSize.x, currentMonitorSize.y);
                 SetWindowState(FLAG_VSYNC_HINT | FLAG_WINDOW_TOPMOST);
                 SetWindowPosition(currentMonitorPosition.x, currentMonitorPosition.y);
             }
             else
             {
-                windowSize = {160.f, 120.f};
+                Vector2 windowSize = (lastImageSize.x == 0 && lastImageSize.y == 0) ? defaultWindowSize : lastImageSize;
 
                 unsigned int currentMonitor = GetCurrentMonitor();
                 Vector2 centeredLocalPosition =
@@ -126,13 +127,18 @@ int start()
 
                 Vector2 finalPosition =
                     Vector2Add(currentMonitorPosition, centeredLocalPosition);
-                SetWindowSize(160, 120);
+                SetWindowSize(windowSize.x, windowSize.y);
                 SetWindowState(FLAG_VSYNC_HINT);
                 ClearWindowState(FLAG_WINDOW_TOPMOST);
                 SetWindowPosition(finalPosition.x, finalPosition.y);
             }
         }
 
+        if (imageSizeUpdated && !useFullScreen) {
+            Vector2 windowSize = (lastImageSize.x == 0 && lastImageSize.y == 0) ? defaultWindowSize : lastImageSize;
+            SetWindowSize(windowSize.x, windowSize.y);
+            imageSizeUpdated = false;
+        }
 
         // Draw
         //----------------------------------------------------------------------------------
@@ -145,9 +151,14 @@ int start()
                 Vector2 size =
                     MeasureTextEx(GetFontDefault(), "Waiting for connection.", 10, 0);
                 Vector2 pos;
-                pos.x = (windowSize.x - size.x) / 2.f;
-                pos.y = (windowSize.y - size.y) / 2.f;
+                pos.x = (defaultWindowSize.x - size.x) / 2.f;
+                pos.y = (defaultWindowSize.y - size.y) / 2.f;
                 DrawText("Waiting for connection.", int(pos.x), int(pos.y), 10, LIGHTGRAY);
+
+                if (lastImageSize.x != 0 || lastImageSize.y != 0) {
+                    imageSizeUpdated = true;
+                    lastImageSize = Vector2{ 0, 0 };
+                }
             }
             else
             {
@@ -199,8 +210,13 @@ int start()
                     currentTexture = LoadTextureFromImage(blankPixel);
                 }
 
-                Vector2 texturePosition{(windowSize.x - currentTexture.width) / 2.f,
-                                        (windowSize.y - currentTexture.height) / 2.f};
+                if (currentTexture.width != lastImageSize.x || currentTexture.height != lastImageSize.y) {
+                    imageSizeUpdated = true;
+                    lastImageSize = Vector2{ float(currentTexture.width), float(currentTexture.height) };
+                }
+
+                Vector2 texturePosition{ useFullScreen ? (fullscreenWindowSize.x - currentTexture.width)  / 2.f : 0.f,
+                                         useFullScreen ? (fullscreenWindowSize.y - currentTexture.height) / 2.f : 0.f};
 
                 DrawTextureEx(currentTexture, texturePosition, 0, 1, WHITE);
             }
